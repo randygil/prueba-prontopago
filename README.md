@@ -1,73 +1,121 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
-</p>
+# Prueba Técnica - API RestFull Simple
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Descripción
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Esta es una API RestFull desarrollada como parte de una prueba técnica para ProntoPago. La API permite gestionar citas médicas, incluyendo la creación, pago, confirmación y listado de citas. La API está desarrollada utilizando NestJS, PostgreSQL y Prisma para la gestión de la base de datos.
 
-## Description
+## Funcionalidades
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Paciente**:
 
-## Installation
+  - Pedir cita médica.
+  - Pagar cita para confirmar asistencia.
+  - Listar sus citas.
 
-```bash
-$ yarn install
+- **Médico**:
+  - Confirmar cita (validando que la cita esté pagada).
+  - Listar sus citas del día.
+  - Gestionar sus citas.
+
+## Validaciones
+
+- No se puede pedir cita en un horario no permitido (7:00 - 12:00, 14:00 - 18:00).
+- No se puede pedir cita en un horario ya ocupado.
+- No se puede confirmar una cita que no ha sido pagada.
+
+## Seguridad y Autenticación
+
+Se implementa un sistema de autenticación simple utilizando tokens JWT.
+
+## Usuarios de prueba
+
+El seed contiene 2 usuarios de prueba:
+
+- Paciente: paciente@prontopago.com - 12345678
+- Doctor: medico@prontopago.com - 12345678
+
+## Base de Datos
+
+Se utiliza PostgreSQL como base de datos. Prisma se encarga de la gestión de la base de datos.
+
+## Requisitos
+
+- Node.js v20.15.0
+- Docker (opcional, para ejecutar PostgreSQL y pgAdmin)
+
+## Instalación
+
+1. Clonar el repositorio:
+
+```sh
+git clone https://github.com/randygil/prueba-prontopago
+cd https://github.com/randygil/prueba-prontopago
 ```
 
-## Running the app
+2. Instalar las dependencias:
 
-```bash
-# development
-$ yarn run start
-
-# watch mode
-$ yarn run start:dev
-
-# production mode
-$ yarn run start:prod
+```sh
+yarn install
 ```
 
-## Test
+3. Configurar las variables de entorno:
 
-```bash
-# unit tests
-$ yarn run test
+Crear un archivo [`.env`](.env) en la raíz del proyecto con el siguiente contenido:
 
-# e2e tests
-$ yarn run test:e2e
-
-# test coverage
-$ yarn run test:cov
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/clinica
+PORT=3000
+APP_KEY=your_app_key
+PAYPAL_CLIENT_ID=your_paypal_client_id
+PAYPAL_CLIENT_SECRET=your_paypal_client_secret
+PAYPAL_MODE=sandbox
 ```
 
-## Support
+4. Levantar los servicios de PostgreSQL y pgAdmin utilizando Docker:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```sh
+docker-compose up -d
+```
 
-## Stay in touch
+5. Ejecutar las migraciones de Prisma:
 
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```sh
+npx prisma migrate dev
+```
 
-## License
+6. Ejecutar el seeder para poblar la base de datos con datos iniciales:
 
-Nest is [MIT licensed](LICENSE).
+```sh
+yarn seed
+```
+
+## Ejecución
+
+Para ejecutar el proyecto en modo desarrollo:
+
+```sh
+yarn start:dev
+```
+
+Para ejecutar el proyecto en modo producción:
+
+```sh
+yarn run build
+yarn run start:prod
+```
+
+## Pruebas
+
+Para ejecutar las pruebas unitarias:
+
+```sh
+yarn test
+```
+
+## Documentación
+
+La documentación de la API está disponible en el endpoint `/docs` una vez que el servidor esté en funcionamiento.
+
+```
+
+```

@@ -30,9 +30,9 @@ export class AuthService {
     return JSON.parse(JSON.stringify(decode));
   }
 
-  async validateToken(token: string): Promise<void> {
+  async validateToken(token: string) {
     try {
-      await this.jwtService.verifyAsync(token, {
+      return await this.jwtService.verifyAsync(token, {
         secret: config.appKey,
       });
     } catch (error) {

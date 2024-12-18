@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import config from '../config';
 import { UserModule } from '../user/user.module';
+import { JwtGuard } from './guards/jwt.guard';
 
 @Global()
 @Module({
@@ -13,11 +14,12 @@ import { UserModule } from '../user/user.module';
     PassportModule,
     JwtModule.register({
       secret: config.appKey,
-      signOptions: { expiresIn: '300d' },
+
+      signOptions: { expiresIn: '9999999 years' },
     }),
   ],
-  providers: [AuthService],
+  providers: [AuthService, JwtGuard],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, JwtGuard],
 })
 export class AuthModule {}

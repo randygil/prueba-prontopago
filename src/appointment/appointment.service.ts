@@ -1,19 +1,15 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 
-import { AppointmentStatus } from '@prisma/client';
-import { ConfirmAppointmentDto } from './appointment.dto';
+import { AppointmentStatus, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { PaymentService } from '../payment/payment.service';
-import {
-  APPOINTMENT_COST,
-  PaymentStrategyType,
-} from '../payment/payment.types';
+import { APPOINTMENT_COST } from '../payment/payment.types';
 import {
   PayPalOrderResponse,
   PayPalOrderStatus,
 } from '../payment/strategies/paypal/paypal.types';
 import { OnEvent } from '@nestjs/event-emitter';
-
+import moment from 'moment';
 @Injectable()
 export class AppointmentService {
   constructor(
@@ -25,19 +21,29 @@ export class AppointmentService {
     patientId: number;
     doctorId: number;
     date: string;
+    hour: number;
   }) {
-    const { patientId, doctorId, date } = data;
+    const { patientId, doctorId, date, hour } = data;
 
-    const appointmentDate = new Date(date);
-    const hour = appointmentDate.getHours();
+    const appointmentDate = moment
+      .utc(date)
+      .set({ hour, minute: 0, second: 0, millisecond: 0 })
+      .toDate();
+
     if ((hour < 7 || hour >= 12) && (hour < 14 || hour >= 18)) {
       throw new BadRequestException(
-        'The appointment must be within the allowed hours',
+        `The appointment must be within the allowed hours (7:00 - 12:00, 14:00 - 18:00)`,
       );
     }
 
     const existingAppointment = await this.prisma.appointment.findFirst({
-      where: { doctorId, date: appointmentDate },
+      where: {
+        doctorId,
+        date: {
+          gte: appointmentDate,
+          lt: moment(appointmentDate).add(1, 'hour').toDate(),
+        },
+      },
     });
     if (existingAppointment) {
       throw new BadRequestException(
@@ -70,12 +76,15 @@ export class AppointmentService {
       );
     }
 
-    this.paymentService.setStrategy(PaymentStrategyType.PAYPAL);
+    this.paymentService.setStrategy(PaymentMethod.PAYPAL);
 
     const result = (await this.paymentService.pay(
       APPOINTMENT_COST,
     )) as PayPalOrderResponse;
 
+    if (!result) {
+      throw new BadRequestException('Error creating the payment');
+    }
     if (result.status !== PayPalOrderStatus.CREATED) {
       await this.prisma.appointment.update({
         where: { id },
@@ -93,18 +102,16 @@ export class AppointmentService {
     await this.prisma.appointment.update({
       where: { id },
       data: {
-        status: AppointmentStatus.PENDING_FOR_CONFIRMATION,
         paymentId: result.id,
       },
     });
     return {
+      id: result.id,
       paymentUrl: link?.href,
     };
   }
 
-  async confirmAppointment(confirmAppointmentDto: ConfirmAppointmentDto) {
-    const { appointmentId } = confirmAppointmentDto;
-
+  async confirmAppointment(appointmentId: number, userId: number) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
     });
@@ -114,7 +121,15 @@ export class AppointmentService {
     }
 
     if (appointment.status !== AppointmentStatus.PENDING_FOR_CONFIRMATION) {
-      throw new BadRequestException('The appointment has not been paid for');
+      throw new BadRequestException(
+        'The appointment has not been paid for or has already been confirmed',
+      );
+    }
+
+    if (appointment.doctorId !== userId) {
+      throw new BadRequestException(
+        'You are not authorized to confirm this appointment',
+      );
     }
 
     return this.prisma.appointment.update({
@@ -124,10 +139,8 @@ export class AppointmentService {
   }
 
   async getTodayAppointments() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    const today = moment().startOf('day').toDate();
+    const tomorrow = moment(today).add(1, 'day').toDate();
 
     return this.prisma.appointment.findMany({
       where: {
@@ -137,6 +150,7 @@ export class AppointmentService {
         },
         status: AppointmentStatus.CONFIRMED,
       },
+      include: { patient: true },
     });
   }
 
@@ -147,11 +161,97 @@ export class AppointmentService {
     });
   }
 
+  async getAppointmentsByDoctor(doctorId: number) {
+    return this.prisma.appointment.findMany({
+      where: { doctorId },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  async cancelAppointment(appointmentId: number, userId: number) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+    });
+
+    if (!appointment) {
+      throw new BadRequestException('The appointment does not exist');
+    }
+
+    if (appointment.status !== AppointmentStatus.PENDING_FOR_CONFIRMATION) {
+      throw new BadRequestException(
+        'The appointment has not been paid for or has already been canceled',
+      );
+    }
+
+    if (appointment.doctorId !== userId) {
+      throw new BadRequestException(
+        'You are not authorized to confirm this appointment',
+      );
+    }
+
+    this.paymentService.setStrategy(appointment.paymentMethod as PaymentMethod);
+    await this.paymentService.refund(appointment.paymentId as string);
+
+    return this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: AppointmentStatus.CANCELLED },
+    });
+  }
+
+  async completeAppointment(appointmentId: number, userId: number) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+    });
+
+    if (!appointment) {
+      throw new BadRequestException('The appointment does not exist');
+    }
+
+    if (appointment.status !== AppointmentStatus.CONFIRMED) {
+      throw new BadRequestException(
+        'The appointment has not been confirmed or has already been completed',
+      );
+    }
+
+    if (appointment.doctorId !== userId) {
+      throw new BadRequestException(
+        'You are not authorized to complete this appointment',
+      );
+    }
+
+    return this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: AppointmentStatus.FINISHED },
+    });
+  }
+
   @OnEvent('payment.success')
-  async handleOrderCreatedEvent(payload: { paymentId: string }) {
+  async handleOrderCreatedEvent(payload: {
+    paymentId: string;
+    paymentMethod: PaymentMethod;
+  }) {
     await this.prisma.appointment.update({
       where: { paymentId: payload.paymentId },
-      data: { status: AppointmentStatus.PENDING_FOR_CONFIRMATION },
+      data: {
+        status: AppointmentStatus.PENDING_FOR_CONFIRMATION,
+        paymentMethod: payload.paymentMethod,
+      },
+    });
+  }
+
+  @OnEvent('payment.failed')
+  async handleOrderPaymentFailedEvent(payload: {
+    paymentId: string;
+    paymentMethod: PaymentMethod;
+    errorMessage: string;
+  }) {
+    await this.prisma.appointment.update({
+      where: { paymentId: payload.paymentId },
+      data: {
+        status: AppointmentStatus.PAYMENT_FAILED,
+        paymentMethod: payload.paymentMethod,
+        paymentError: payload.errorMessage,
+      },
     });
   }
 }

@@ -5,13 +5,14 @@ import {
   PayPalCaptureStatus,
   PayPalOrderCreateRequest,
   PayPalOrderResponse,
-  PayPalOrderStatus,
+  PaypalShowOrderDetailsResponse,
   PayPalTokenResponse,
 } from './paypal.types';
 import config from '../../../config';
 import { PaymentStrategy } from '../../payment.strategy';
 import { CURRENCY } from '../../payment.types';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class PaypalStrategy implements PaymentStrategy {
@@ -22,8 +23,8 @@ export class PaypalStrategy implements PaymentStrategy {
     this.client = axios.create({
       baseURL:
         config.paypalMode === 'sandbox'
-          ? 'https://api.sandbox.paypal.com'
-          : 'https://api.paypal.com',
+          ? 'https://api-m.sandbox.paypal.com'
+          : 'https://api-m.paypal.com',
 
       headers: {
         'Content-Type': 'application/json',
@@ -33,23 +34,24 @@ export class PaypalStrategy implements PaymentStrategy {
 
   private async setAccessToken(): Promise<void> {
     try {
-      const auth = Buffer.from(
-        `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`,
-      ).toString('base64');
-
+      if (this.accessToken) {
+        return;
+      }
       const { data } = await axios.post<PayPalTokenResponse>(
         `${this.client.defaults.baseURL}/v1/oauth2/token`,
         'grant_type=client_credentials',
         {
-          headers: {
-            Authorization: `Basic ${auth}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
+          auth: {
+            username: config.paypalClientId,
+            password: config.paypalClientSecret,
           },
         },
       );
 
+      this.accessToken = data.access_token;
       this.client.defaults.headers.Authorization = `Bearer ${data.access_token}`;
     } catch (error) {
+      console.error('Error obtaining PayPal token', error);
       throw new HttpException(
         'Error obtaining PayPal token',
         HttpStatus.UNAUTHORIZED,
@@ -99,6 +101,13 @@ export class PaypalStrategy implements PaymentStrategy {
       if (data.status === PayPalCaptureStatus.COMPLETED) {
         this.eventEmitter.emit('payment.success', {
           paymentId: orderId,
+          paymentMethod: PaymentMethod.PAYPAL,
+        });
+      } else {
+        this.eventEmitter.emit('payment.failed', {
+          paymentId: orderId,
+          paymentMethod: PaymentMethod.PAYPAL,
+          errorMessage: data.status,
         });
       }
 
@@ -106,6 +115,63 @@ export class PaypalStrategy implements PaymentStrategy {
     } catch (error) {
       throw new HttpException(
         `Error capturing PayPal order: ${(error as any).response?.data?.message || (error as any).message}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async getOrderDetails(
+    orderId: string,
+  ): Promise<PaypalShowOrderDetailsResponse> {
+    try {
+      await this.setAccessToken();
+
+      const { data } = await this.client.get<PaypalShowOrderDetailsResponse>(
+        `/v2/checkout/orders/${orderId}`,
+      );
+
+      return data;
+    } catch (error) {
+      throw new HttpException(
+        `Error getting PayPal order details: ${(error as any).response?.data?.message || (error as any).message}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async refund(paymentId: string): Promise<void> {
+    try {
+      await this.setAccessToken();
+
+      const orderDetails = await this.getOrderDetails(paymentId);
+
+      if (orderDetails.status !== PayPalCaptureStatus.COMPLETED) {
+        throw new HttpException(
+          'Cannot refund an order that has not been completed',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const [purchase_unit] = orderDetails.purchase_units;
+
+      if (!purchase_unit.payments || !purchase_unit.payments.captures) {
+        throw new HttpException(
+          'Cannot refund an order that has not been captured',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const [capture] = purchase_unit.payments.captures;
+      const captureId = capture.id;
+
+      const res = await this.client.post(
+        `/v2/payments/captures/${captureId}/refund`,
+        {},
+      );
+      return res.data;
+    } catch (error) {
+      console.error(error);
+      throw new HttpException(
+        `Error refunding PayPal payment: ${(error as any).response?.data?.message || (error as any).message}`,
         HttpStatus.BAD_REQUEST,
       );
     }

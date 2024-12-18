@@ -10,7 +10,6 @@ export class JwtGuard implements CanActivate {
     const token = bearer ? bearer.replace(/^Bearer\s/, '') : '';
     const user = await this._authService.decodeToken(token);
     req.user = user;
-    console.log('SETEE PRIMERO EL REQ');
     const validateToken = !token
       ? false
       : await this._authService.validateToken(token);

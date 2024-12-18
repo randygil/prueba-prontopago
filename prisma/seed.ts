@@ -53,7 +53,5 @@ async function seedMongo() {
     console.log(`Seeding ${seed.name} finished.`);
   }
 
-  console.log(pendingSeeds);
-
   console.log(`Seeding finished.`);
 }
