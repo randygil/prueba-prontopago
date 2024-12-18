@@ -5,7 +5,7 @@ export const seedUsers = async (prisma: PrismaClient) => {
   const doctorPassword = await Crypto.hashPassword('12345678');
   await prisma.user.create({
     data: {
-      email: 'medico@prontopago.com',
+      email: 'medico@prontopaga.com',
       role: UserRole.DOCTOR,
       name: 'Jonathan',
       lastName: 'Joestar',
@@ -16,7 +16,7 @@ export const seedUsers = async (prisma: PrismaClient) => {
 
   await prisma.user.create({
     data: {
-      email: 'paciente@prontopago.com',
+      email: 'paciente@prontopaga.com',
       role: UserRole.PATIENT,
       name: 'Robert E.',
       lastName: 'Speedwagon',

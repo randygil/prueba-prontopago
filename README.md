@@ -2,7 +2,7 @@
 
 ## Descripción
 
-Esta es una API RestFull desarrollada como parte de una prueba técnica para ProntoPago. La API permite gestionar citas médicas, incluyendo la creación, pago, confirmación y listado de citas. La API está desarrollada utilizando NestJS, PostgreSQL y Prisma para la gestión de la base de datos.
+Esta es una API RestFull desarrollada como parte de una prueba técnica para ProntoPaga. La API permite gestionar citas médicas, incluyendo la creación, pago, confirmación y listado de citas. La API está desarrollada utilizando NestJS, PostgreSQL y Prisma para la gestión de la base de datos.
 
 ## Funcionalidades
 
@@ -31,8 +31,8 @@ Se implementa un sistema de autenticación simple utilizando tokens JWT.
 
 El seed contiene 2 usuarios de prueba:
 
-- Paciente: paciente@prontopago.com - 12345678
-- Doctor: medico@prontopago.com - 12345678
+- Paciente: paciente@prontopaga.com - 12345678
+- Doctor: medico@prontopaga.com - 12345678
 
 ## Base de Datos
 
@@ -48,8 +48,8 @@ Se utiliza PostgreSQL como base de datos. Prisma se encarga de la gestión de la
 1. Clonar el repositorio:
 
 ```sh
-git clone https://github.com/randygil/prueba-prontopago
-cd https://github.com/randygil/prueba-prontopago
+git clone https://github.com/randygil/prueba-prontopaga
+cd https://github.com/randygil/prueba-prontopaga
 ```
 
 2. Instalar las dependencias:

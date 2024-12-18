@@ -32,7 +32,7 @@ describe('UserService', () => {
   it('should return a user', async () => {
     const mockUser = {
       id: 1,
-      email: 'paciente@prontopago.com',
+      email: 'paciente@prontopaga.com',
       name: 'Paciente',
       role: 'PATIENT',
       password: '12345678',
